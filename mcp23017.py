@@ -33,7 +33,7 @@ from machine import I2C
 from micropython import const
 
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 
 # default values
 _DEFAULT_ADDR    = const(0x20)
@@ -108,7 +108,12 @@ class Port:
             setattr(self, reg, getattr(self, reg) & ~bit)
 
     def _read(self, reg: int) -> int:
-        return self._mcp.i2c.readfrom_mem(self._mcp.address, self._which_reg(reg), 1)[0]
+        # readfrom_mem_into a buffer kept on the device, so a read
+        # allocates nothing (readfrom_mem returns a new bytes object each
+        # time).
+        buf = self._mcp._read_buf
+        self._mcp.i2c.readfrom_mem_into(self._mcp.address, self._which_reg(reg), buf)
+        return buf[0]
 
     def _write(self, reg: int, val: int) -> None:
         val &= _MASK_BYTE
@@ -351,6 +356,7 @@ class MCP23017:
 
     def __init__(self, i2c: I2C, address: int = _DEFAULT_ADDR) -> None:
         self.i2c = i2c
+        self._read_buf = bytearray(1)
         self.address = address
         self.config_cache = 0x00
         self._virtual_pins: dict[int, VirtualPin] = {}
